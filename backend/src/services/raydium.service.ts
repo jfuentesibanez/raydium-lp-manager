@@ -165,9 +165,30 @@ export class RaydiumService {
       try {
         const cleanAddress = walletAddress.trim()
         logger.info(`Clean address: "${cleanAddress}" (length: ${cleanAddress.length})`)
+
+        // Try creating directly from string
         walletPubkey = new PublicKey(cleanAddress)
+        logger.info(`Successfully created PublicKey: ${walletPubkey.toBase58()}`)
       } catch (error) {
-        throw new Error(`Invalid wallet address format: "${walletAddress}". Length: ${walletAddress.length}. Error: ${error instanceof Error ? error.message : String(error)}`)
+        // Log full error details
+        logger.error(`PublicKey creation failed!`)
+        logger.error(`Error name: ${error instanceof Error ? error.name : 'unknown'}`)
+        logger.error(`Error message: ${error instanceof Error ? error.message : String(error)}`)
+        logger.error(`Error stack: ${error instanceof Error ? error.stack : 'no stack'}`)
+
+        // Try alternative: create from buffer if it's a valid base58 string
+        try {
+          const bs58 = require('bs58')
+          logger.info(`Attempting bs58 decode...`)
+          const decoded = bs58.decode(cleanAddress)
+          logger.info(`bs58 decoded length: ${decoded.length} bytes`)
+          logger.info(`bs58 decoded hex: ${Buffer.from(decoded).toString('hex')}`)
+          walletPubkey = new PublicKey(decoded)
+          logger.info(`✅ Created PublicKey from buffer: ${walletPubkey.toBase58()}`)
+        } catch (altError) {
+          logger.error(`bs58 decode also failed: ${altError instanceof Error ? altError.message : String(altError)}`)
+          throw new Error(`Invalid wallet address format: "${walletAddress}". Length: ${walletAddress.length}. Original error: ${error instanceof Error ? error.message : String(error)}`)
+        }
       }
 
       // Find all token accounts owned by the wallet
