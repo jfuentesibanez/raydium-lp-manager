@@ -138,4 +138,18 @@ program
     }
   })
 
+// Test Telegram command
+program
+  .command('test-telegram')
+  .description('Test Telegram notification integration')
+  .action(async () => {
+    try {
+      const { testTelegramCommand } = await import('./commands/test-telegram')
+      await testTelegramCommand()
+    } catch (error) {
+      logger.error('Error testing Telegram:', error)
+      process.exit(1)
+    }
+  })
+
 program.parse()

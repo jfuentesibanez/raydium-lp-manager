@@ -26,6 +26,7 @@
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.7",
     "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.67.0",
     "winston": "^3.17.0",
     "yaml": "^2.6.1",
     "zod": "^3.24.1"
@@ -34,6 +35,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.2",
     "@types/node-cron": "^3.0.11",
+    "@types/node-telegram-bot-api": "^0.64.13",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "eslint": "^9.17.0",

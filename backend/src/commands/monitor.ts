@@ -3,6 +3,7 @@ import logger from '../utils/logger'
 import config from '../config'
 import raydiumService from '../services/raydium-mock.service'
 import { createRebalanceStrategy, PositionInfo } from '../core/rebalance-strategy'
+import telegramService from '../services/telegram.service'
 
 interface MonitorOptions {
   interval: string
@@ -30,6 +31,9 @@ export async function monitorCommand(options: MonitorOptions) {
   logger.info(`Auto-Rebalance: ${options.rebalance ? 'Enabled' : 'Disabled'}`)
   logger.info(`Auto-Compound: ${options.compound ? 'Enabled' : 'Disabled'}`)
   logger.info('')
+
+  // Send Telegram startup notification
+  await telegramService.sendStartupMessage()
 
   // Run immediately on start
   await monitorCheck(walletAddress, options)
@@ -63,10 +67,12 @@ async function monitorCheck(walletAddress: string, options: MonitorOptions) {
 
     let outOfRangeCount = 0
     let totalPendingYield = 0
+    let totalValue = 0
 
     for (const position of positions) {
       const isInRange = !position.isOutOfRange
       totalPendingYield += position.pendingFeesUSD
+      totalValue += position.totalValueUSD
 
       if (!isInRange) {
         outOfRangeCount++
@@ -94,6 +100,9 @@ async function monitorCheck(walletAddress: string, options: MonitorOptions) {
           }
 
           const decision = rebalanceStrategy.shouldRebalance(positionInfo)
+
+          // Send Telegram alert for any out-of-range position with rebalance analysis
+          await telegramService.sendRebalanceAlert(positionInfo, decision)
 
           if (decision.shouldRebalance) {
             logger.info(`   ✓ Rebalancing recommended: ${decision.reason}`)
@@ -123,8 +132,20 @@ async function monitorCheck(walletAddress: string, options: MonitorOptions) {
 
     logger.info(`✓ Check complete. ${positions.length} positions monitored, ${outOfRangeCount} out of range\n`)
 
+    // Send Telegram summary (only if there are positions)
+    if (positions.length > 0) {
+      await telegramService.sendCheckSummary(
+        positions.length,
+        outOfRangeCount,
+        totalValue,
+        totalPendingYield
+      )
+    }
+
   } catch (error) {
     logger.error('Error during monitor check:', error)
+    // Send error notification to Telegram
+    await telegramService.sendError(error instanceof Error ? error.message : String(error))
   }
 }
 
