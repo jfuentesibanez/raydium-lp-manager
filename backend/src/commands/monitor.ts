@@ -22,11 +22,19 @@ export async function monitorCommand(options: MonitorOptions) {
     process.exit(1)
   }
 
+  // Validate wallet address format
+  if (walletAddress.length < 32 || walletAddress.length > 44) {
+    logger.error(`Invalid wallet address format: "${walletAddress}" (length: ${walletAddress.length})`)
+    logger.error('Expected Solana address length: 32-44 characters')
+    process.exit(1)
+  }
+
   const intervalMinutes = parseInt(options.interval)
   const cronSchedule = `*/${intervalMinutes} * * * *`
 
   logger.info('Starting LP Position Monitor')
   logger.info(`Wallet: ${walletAddress}`)
+  logger.info(`Wallet length: ${walletAddress.length} characters`)
   logger.info(`Check Interval: Every ${intervalMinutes} minutes`)
   logger.info(`Auto-Rebalance: ${options.rebalance ? 'Enabled' : 'Disabled'}`)
   logger.info(`Auto-Compound: ${options.compound ? 'Enabled' : 'Disabled'}`)

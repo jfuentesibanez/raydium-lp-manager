@@ -151,8 +151,19 @@ export class RaydiumService {
     try {
       logger.info(`Fetching positions for wallet ${walletAddress}`)
 
+      if (!walletAddress || walletAddress.trim() === '') {
+        throw new Error('Wallet address is empty or undefined')
+      }
+
       await this.initRaydium()
-      const walletPubkey = new PublicKey(walletAddress)
+
+      // Validate and create PublicKey
+      let walletPubkey: PublicKey
+      try {
+        walletPubkey = new PublicKey(walletAddress)
+      } catch (error) {
+        throw new Error(`Invalid wallet address format: ${walletAddress}. Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
 
       // Find all token accounts owned by the wallet
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
