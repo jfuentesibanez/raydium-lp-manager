@@ -4,21 +4,23 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files from backend directory
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (including dev for build)
+RUN npm install
 
 # Copy source code
 COPY . .
 
 # Build TypeScript
-RUN npm install -g tsx typescript
 RUN npm run build
+
+# Remove dev dependencies after build
+RUN npm prune --production
 
 # Expose port (Railway requires this even if not used for HTTP)
 EXPOSE 3000
 
 # Run the monitor command
-CMD ["npm", "start"]
+CMD ["npm", "run", "start:prod"]
