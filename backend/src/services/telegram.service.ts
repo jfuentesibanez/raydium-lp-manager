@@ -12,8 +12,8 @@ class TelegramService {
   }
 
   private initialize() {
-    const token = process.env.TELEGRAM_BOT_TOKEN
-    const chatId = process.env.TELEGRAM_CHAT_ID
+    const token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+    const chatId = process.env.TELEGRAM_CHAT_ID?.trim()
 
     if (!token || !chatId) {
       console.log('⚠️  Telegram notifications disabled (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID)')

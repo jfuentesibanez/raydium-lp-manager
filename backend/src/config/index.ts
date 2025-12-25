@@ -27,7 +27,7 @@ export const config = {
   },
 
   wallet: {
-    publicKey: process.env.WALLET_PUBLIC_KEY || '',
+    publicKey: (process.env.WALLET_PUBLIC_KEY || '').trim(),
   },
 
   raydium: {
