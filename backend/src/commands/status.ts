@@ -14,7 +14,7 @@ export async function statusCommand(options: StatusOptions) {
   const walletAddress = options.wallet || config.wallet.publicKey
 
   if (!walletAddress) {
-    logger.error('No wallet address provided. Use --wallet or set WALLET_PUBLIC_KEY in .env')
+    console.error('\n❌ No wallet address provided. Use --wallet or set WALLET_PUBLIC_KEY in .env\n')
     process.exit(1)
   }
 
@@ -22,46 +22,52 @@ export async function statusCommand(options: StatusOptions) {
   const raydiumService = options.real ? raydiumRealService : raydiumMockService
   const dataSource = options.real ? 'REAL on-chain data' : 'MOCK data'
 
-  logger.info(`Fetching positions for wallet: ${walletAddress}`)
-  logger.info(`Data source: ${dataSource}`)
+  console.log('\n╔════════════════════════════════════════════════════════════════════════╗')
+  console.log('║              RAYDIUM LP POSITION STATUS                                ║')
+  console.log('╚════════════════════════════════════════════════════════════════════════╝\n')
+  console.log(`📍 Wallet: ${walletAddress.slice(0, 20)}...`)
+  console.log(`📊 Source: ${dataSource}\n`)
 
   try {
     const positions = await raydiumService.getWalletPositions(walletAddress)
 
     if (positions.length === 0) {
-      logger.info('No positions found')
+      console.log('ℹ️  No positions found\n')
       return
     }
-
-    logger.info(`\nFound ${positions.length} position(s):\n`)
 
     let totalValue = 0
     let totalPendingFees = 0
     let inRangeCount = 0
 
-    for (const position of positions) {
+    for (let i = 0; i < positions.length; i++) {
+      const position = positions[i]
       const isInRange = !position.isOutOfRange
       if (isInRange) inRangeCount++
 
       totalValue += position.totalValueUSD
       totalPendingFees += position.pendingFeesUSD
 
-      logger.info(`Position: ${position.poolName}`)
-      logger.info(`  ID: ${position.id}`)
-      logger.info(`  Status: ${isInRange ? '✓ In Range' : '⚠️  Out of Range'}`)
-      logger.info(`  Value: $${position.totalValueUSD.toFixed(2)}`)
-      logger.info(`  APR: ${position.apr.toFixed(2)}%`)
-      logger.info(`  Price Range: $${position.priceMin.toFixed(4)} - $${position.priceMax.toFixed(4)}`)
-      logger.info(`  Current Price: $${position.currentPrice.toFixed(4)}`)
-      logger.info(`  Pending Fees: $${position.pendingFeesUSD.toFixed(2)}`)
-      logger.info('')
+      console.log('─'.repeat(74))
+      console.log(`\n${isInRange ? '✅' : '⚠️ '} ${position.poolName}`)
+      console.log(`   ID: ${position.id}`)
+      console.log(`   Status: ${isInRange ? '🟢 In Range' : '🔴 Out of Range'}`)
+      console.log(`   Value: $${position.totalValueUSD.toFixed(2).padStart(10)} | APR: ${position.apr.toFixed(2)}%`)
+      console.log(`   Range: $${position.priceMin.toFixed(4)} - $${position.priceMax.toFixed(4)}`)
+      console.log(`   Price: $${position.currentPrice.toFixed(4)} ${isInRange ? '(in range)' : '(OUT OF RANGE)'}`)
+      console.log(`   Fees:  $${position.pendingFeesUSD.toFixed(2)}`)
+      console.log()
     }
 
-    logger.info('Portfolio Summary:')
-    logger.info(`  Total Value: $${totalValue.toFixed(2)}`)
-    logger.info(`  Total Pending Fees: $${totalPendingFees.toFixed(2)}`)
-    logger.info(`  Positions In Range: ${inRangeCount}/${positions.length}`)
-    logger.info(`  Positions Out of Range: ${positions.length - inRangeCount}/${positions.length}`)
+    console.log('═'.repeat(74))
+    console.log('\n📈 PORTFOLIO SUMMARY')
+    console.log('─'.repeat(74))
+    console.log(`   Total Value:       $${totalValue.toFixed(2)}`)
+    console.log(`   Pending Fees:      $${totalPendingFees.toFixed(2)}`)
+    console.log(`   In Range:          ${inRangeCount}/${positions.length} positions`)
+    console.log(`   Out of Range:      ${positions.length - inRangeCount}/${positions.length} positions`)
+    console.log('═'.repeat(74))
+    console.log()
 
   } catch (error) {
     logger.error('Failed to fetch positions:', error)

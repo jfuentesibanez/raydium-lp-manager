@@ -184,11 +184,6 @@ export class RebalanceStrategy {
     const newPriceMin = currentPrice * (1 - rangePercent)
     const newPriceMax = currentPrice * (1 + rangePercent)
 
-    logger.info(`Calculated new range for ${position.poolName}:`)
-    logger.info(`  Current Price: $${currentPrice.toFixed(4)}`)
-    logger.info(`  Old Range: $${position.priceMin.toFixed(4)} - $${position.priceMax.toFixed(4)}`)
-    logger.info(`  New Range: $${newPriceMin.toFixed(4)} - $${newPriceMax.toFixed(4)} (±${this.config.defaultRangePercent}%)`)
-
     return { newPriceMin, newPriceMax }
   }
 
@@ -224,13 +219,7 @@ export class RebalanceStrategy {
     // Rule of thumb: gas should be < 1% of position value
     const gasPercentage = (gasCost / position.totalValueUSD) * 100
 
-    if (gasPercentage < 1) {
-      logger.info(`Gas cost (${gasPercentage.toFixed(3)}%) acceptable for position value ($${position.totalValueUSD.toFixed(2)})`)
-      return true
-    }
-
-    logger.warn(`Gas cost (${gasPercentage.toFixed(3)}%) too high for position value ($${position.totalValueUSD.toFixed(2)})`)
-    return false
+    return gasPercentage < 1
   }
 
   /**
@@ -238,7 +227,6 @@ export class RebalanceStrategy {
    */
   recordRebalance(positionId: string): void {
     this.lastRebalanceTimes.set(positionId, Date.now())
-    logger.info(`Recorded rebalance for position ${positionId}`)
   }
 
   /**
