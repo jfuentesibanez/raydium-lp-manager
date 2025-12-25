@@ -1,38 +1,36 @@
 {
-  "name": "raydium-lp-manager-backend",
+  "name": "raydium-lp-cli",
   "version": "0.1.0",
   "private": true,
-  "description": "Backend automation engine for Raydium Liquidity Pool Manager",
+  "description": "Automated CLI tool for managing Raydium Liquidity Positions",
   "main": "dist/index.js",
+  "bin": {
+    "raydium-lp": "./dist/index.js"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx src/cli.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/cli.js",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
+    "monitor": "tsx src/cli.ts monitor",
     "test": "jest"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.8",
     "@coral-xyz/anchor": "^0.30.1",
-    "@raydium-io/raydium-sdk-v2": "^0.1.82",
-    "@pythnetwork/client": "^2.23.0",
-    "express": "^4.21.2",
-    "cors": "^2.8.5",
+    "commander": "^12.1.0",
     "dotenv": "^16.4.7",
-    "pg": "^8.13.1",
-    "ioredis": "^5.4.2",
-    "bullmq": "^5.28.2",
     "axios": "^1.7.9",
     "winston": "^3.17.0",
     "zod": "^3.24.1",
-    "decimal.js": "^10.4.3"
+    "decimal.js": "^10.4.3",
+    "yaml": "^2.6.1",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "@types/express": "^5.0.0",
-    "@types/cors": "^2.8.17",
-    "@types/pg": "^8.11.10",
+    "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "eslint": "^9.17.0",
