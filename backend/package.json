@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx src/cli.ts",
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "start": "node dist/cli.js monitor --interval 5",
     "start:prod": "node dist/cli.js monitor --interval 5",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
