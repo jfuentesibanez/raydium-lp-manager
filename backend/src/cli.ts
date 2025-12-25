@@ -152,4 +152,18 @@ program
     }
   })
 
+// Test Wallet command
+program
+  .command('test-wallet')
+  .description('Test wallet address configuration')
+  .action(async () => {
+    try {
+      const { testWalletCommand } = await import('./commands/test-wallet')
+      await testWalletCommand()
+    } catch (error) {
+      logger.error('Error testing wallet:', error)
+      process.exit(1)
+    }
+  })
+
 program.parse()
