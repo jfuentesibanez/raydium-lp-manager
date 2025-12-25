@@ -1,4 +1,3 @@
-import { Connection } from '@solana/web3.js'
 import cron from 'node-cron'
 import logger from '../utils/logger'
 import config from '../config'
@@ -11,7 +10,6 @@ interface MonitorOptions {
 }
 
 export async function monitorCommand(options: MonitorOptions) {
-  const connection = new Connection(config.solana.rpcUrl, 'confirmed')
   const walletAddress = config.wallet.publicKey
 
   if (!walletAddress) {
@@ -63,8 +61,8 @@ async function monitorCheck(walletAddress: string, options: MonitorOptions) {
     let totalPendingYield = 0
 
     for (const position of positions) {
-      const isInRange = position.status === 'active'
-      totalPendingYield += position.pendingYield
+      const isInRange = !position.isOutOfRange
+      totalPendingYield += position.pendingFeesUSD
 
       if (!isInRange) {
         outOfRangeCount++

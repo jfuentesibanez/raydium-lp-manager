@@ -1,14 +1,14 @@
-import { Connection, PublicKey } from '@solana/web3.js'
 import logger from '../utils/logger'
 import config from '../config'
-import raydiumService from '../services/raydium-mock.service'
+import raydiumMockService from '../services/raydium-mock.service'
+import raydiumRealService from '../services/raydium.service'
 
 interface StatusOptions {
   wallet?: string
+  real?: boolean
 }
 
 export async function statusCommand(options: StatusOptions) {
-  const connection = new Connection(config.solana.rpcUrl, 'confirmed')
 
   // Use wallet from options or from env
   const walletAddress = options.wallet || config.wallet.publicKey
@@ -18,7 +18,12 @@ export async function statusCommand(options: StatusOptions) {
     process.exit(1)
   }
 
+  // Choose service based on --real flag
+  const raydiumService = options.real ? raydiumRealService : raydiumMockService
+  const dataSource = options.real ? 'REAL on-chain data' : 'MOCK data'
+
   logger.info(`Fetching positions for wallet: ${walletAddress}`)
+  logger.info(`Data source: ${dataSource}`)
 
   try {
     const positions = await raydiumService.getWalletPositions(walletAddress)

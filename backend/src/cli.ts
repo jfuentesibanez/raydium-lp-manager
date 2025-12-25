@@ -19,6 +19,7 @@ program
   .command('status')
   .description('Show status of all liquidity positions')
   .option('-w, --wallet <address>', 'Wallet address to check')
+  .option('--real', 'Use real on-chain data instead of mock data')
   .action(async (options) => {
     try {
       logger.info('Fetching position status...')

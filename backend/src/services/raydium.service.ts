@@ -1,48 +1,48 @@
 import { Connection, PublicKey } from '@solana/web3.js'
+import { Raydium, ApiV3PoolInfoStandardItemCpmm, PositionInfoLayout, PoolFetchType } from '@raydium-io/raydium-sdk-v2'
 import config from '../config'
 import logger from '../utils/logger'
-import Decimal from 'decimal.js'
 
-// Raydium CLMM Pool State structure
-interface PoolState {
-  ammConfig: PublicKey
-  poolCreator: PublicKey
-  tokenMint0: PublicKey
-  tokenMint1: PublicKey
-  tokenVault0: PublicKey
-  tokenVault1: PublicKey
-  observationKey: PublicKey
-  tickArrayBitmap: PublicKey
+interface PoolData {
+  address: string
+  name: string
+  token0Mint: string
+  token0Symbol: string
+  token1Mint: string
+  token1Symbol: string
+  currentPrice: number
   liquidity: string
-  sqrtPriceX64: string
-  tickCurrent: number
-  feeGrowthGlobal0X64: string
-  feeGrowthGlobal1X64: string
-  protocolFeesToken0: string
-  protocolFeesToken1: string
-  swapInAmountToken0: string
-  swapOutAmountToken1: string
-  swapInAmountToken1: string
-  swapOutAmountToken0: string
-  status: number
+  volume24h: number
+  apr: number
+  tvl: number
 }
 
-// Position state structure
-interface PositionState {
-  poolId: PublicKey
-  nftMint: PublicKey
-  tickLowerIndex: number
-  tickUpperIndex: number
+interface PositionData {
+  id: string
+  nftMint: string
+  poolAddress: string
+  poolName: string
+  token0Mint: string
+  token0Symbol: string
+  token0Amount: number
+  token1Mint: string
+  token1Symbol: string
+  token1Amount: number
+  tickLower: number
+  tickUpper: number
+  priceMin: number
+  priceMax: number
+  currentPrice: number
   liquidity: string
-  feeGrowthInside0LastX64: string
-  feeGrowthInside1LastX64: string
-  tokenFeesOwed0: string
-  tokenFeesOwed1: string
-  rewardInfos: any[]
+  totalValueUSD: number
+  pendingFeesUSD: number
+  apr: number
+  isOutOfRange: boolean
 }
 
 export class RaydiumService {
   private connection: Connection
+  private raydium: Raydium | null = null
   private programId: PublicKey
 
   constructor() {
@@ -51,95 +51,178 @@ export class RaydiumService {
   }
 
   /**
+   * Initialize Raydium SDK
+   */
+  private async initRaydium(): Promise<Raydium> {
+    if (this.raydium) {
+      return this.raydium
+    }
+
+    try {
+      logger.info('Initializing Raydium SDK...')
+
+      this.raydium = await Raydium.load({
+        connection: this.connection,
+        cluster: config.solana.network as 'mainnet' | 'devnet',
+        owner: PublicKey.default, // We don't need owner for read operations
+        disableFeatureCheck: true,
+        disableLoadToken: false,
+      })
+
+      logger.info('Raydium SDK initialized successfully')
+      return this.raydium
+    } catch (error) {
+      logger.error('Failed to initialize Raydium SDK:', error)
+      throw error
+    }
+  }
+
+  /**
    * Fetch pool information by pool address
    */
-  async getPoolInfo(poolAddress: string): Promise<any> {
+  async getPoolInfo(poolAddress: string): Promise<PoolData | null> {
     try {
+      logger.info(`Fetching pool info for ${poolAddress}`)
+
+      const raydium = await this.initRaydium()
       const poolPubkey = new PublicKey(poolAddress)
+
+      // Fetch pool account info
       const accountInfo = await this.connection.getAccountInfo(poolPubkey)
 
       if (!accountInfo) {
-        throw new Error('Pool not found')
+        logger.warn(`Pool ${poolAddress} not found`)
+        return null
       }
 
-      // Deserialize pool state
-      // Note: This is a simplified version. In production, you'd use the Raydium SDK
-      // to properly deserialize the account data
-      const poolData = this.deserializePoolState(accountInfo.data)
+      // Try to fetch from API first (more efficient)
+      try {
+        const poolsData = await raydium.api.fetchPoolById({ ids: poolAddress })
 
-      // Calculate current price from sqrtPriceX64
-      const price = this.sqrtPriceX64ToPrice(poolData.sqrtPriceX64)
+        if (poolsData && poolsData.length > 0) {
+          const pool = poolsData[0] as ApiV3PoolInfoStandardItemCpmm
+
+          return {
+            address: poolAddress,
+            name: `${pool.mintA.symbol}/${pool.mintB.symbol}`,
+            token0Mint: pool.mintA.address,
+            token0Symbol: pool.mintA.symbol,
+            token1Mint: pool.mintB.address,
+            token1Symbol: pool.mintB.symbol,
+            currentPrice: typeof pool.price === 'string' ? parseFloat(pool.price) : pool.price,
+            liquidity: pool.tvl?.toString() || '0',
+            volume24h: pool.day?.volume || 0,
+            apr: pool.day?.apr || 0,
+            tvl: pool.tvl || 0,
+          }
+        }
+      } catch (apiError) {
+        logger.warn('API fetch failed, falling back to on-chain data:', apiError)
+      }
+
+      // Fallback: parse on-chain data directly
+      // Note: This requires understanding the pool account layout
+      logger.info('Pool found on-chain, but API data not available')
 
       return {
         address: poolAddress,
-        token0Mint: poolData.tokenMint0.toString(),
-        token1Mint: poolData.tokenMint1.toString(),
-        liquidity: poolData.liquidity,
-        currentPrice: price,
-        tickCurrent: poolData.tickCurrent,
-        feeGrowthGlobal0: poolData.feeGrowthGlobal0X64,
-        feeGrowthGlobal1: poolData.feeGrowthGlobal1X64,
+        name: 'Unknown Pool',
+        token0Mint: '',
+        token0Symbol: '',
+        token1Mint: '',
+        token1Symbol: '',
+        currentPrice: 0,
+        liquidity: '0',
+        volume24h: 0,
+        apr: 0,
+        tvl: 0,
       }
+
     } catch (error) {
       logger.error(`Error fetching pool info for ${poolAddress}:`, error)
-      throw error
+      return null
     }
   }
 
   /**
    * Fetch all positions for a wallet address
    */
-  async getWalletPositions(walletAddress: string): Promise<any[]> {
+  async getWalletPositions(walletAddress: string): Promise<PositionData[]> {
     try {
+      logger.info(`Fetching positions for wallet ${walletAddress}`)
+
+      await this.initRaydium()
       const walletPubkey = new PublicKey(walletAddress)
 
-      // Find all token accounts owned by the wallet that are position NFTs
+      // Find all token accounts owned by the wallet
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         walletPubkey,
         { programId: new PublicKey('TokenkgQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') }
       )
 
-      const positions: any[] = []
+      const positions: PositionData[] = []
 
       for (const { account } of tokenAccounts.value) {
         const tokenAmount = account.data.parsed.info.tokenAmount
 
         // Only process accounts with exactly 1 token (NFTs)
-        if (tokenAmount.uiAmount === 1) {
-          const mint = new PublicKey(account.data.parsed.info.mint)
+        if (tokenAmount.uiAmount === 1 && tokenAmount.decimals === 0) {
+          const nftMint = new PublicKey(account.data.parsed.info.mint)
 
-          // Derive the position PDA from the NFT mint
-          const [positionPDA] = PublicKey.findProgramAddressSync(
-            [Buffer.from('position'), mint.toBuffer()],
-            this.programId
-          )
-
-          // Fetch position account
-          const positionAccount = await this.connection.getAccountInfo(positionPDA)
-
-          if (positionAccount) {
-            const positionData = this.deserializePositionState(positionAccount.data)
-
-            // Fetch pool data for this position
-            const poolInfo = await this.getPoolInfo(positionData.poolId.toString())
-
-            // Calculate position value and pending fees
-            const positionDetails = await this.calculatePositionDetails(
-              positionData,
-              poolInfo
+          try {
+            // Derive the position PDA from the NFT mint
+            const [positionPDA] = PublicKey.findProgramAddressSync(
+              [Buffer.from('position'), nftMint.toBuffer()],
+              this.programId
             )
 
-            positions.push({
-              id: positionPDA.toString(),
-              nftMint: mint.toString(),
-              poolAddress: positionData.poolId.toString(),
-              ...positionDetails,
-            })
+            // Fetch position account
+            const positionAccount = await this.connection.getAccountInfo(positionPDA)
+
+            if (positionAccount && positionAccount.data) {
+              try {
+                // Deserialize position data
+                const positionData = PositionInfoLayout.decode(positionAccount.data)
+
+                // Fetch pool info
+                const poolAddress = positionData.poolId.toString()
+                const poolInfo = await this.getPoolInfo(poolAddress)
+
+                if (!poolInfo) {
+                  logger.warn(`Pool ${poolAddress} not found for position`)
+                  continue
+                }
+
+                // Calculate token amounts and position value
+                const details = this.calculatePositionValue(
+                  positionData,
+                  poolInfo
+                )
+
+                positions.push({
+                  id: positionPDA.toString(),
+                  nftMint: nftMint.toString(),
+                  poolAddress,
+                  poolName: poolInfo.name,
+                  token0Mint: poolInfo.token0Mint,
+                  token0Symbol: poolInfo.token0Symbol,
+                  token1Mint: poolInfo.token1Mint,
+                  token1Symbol: poolInfo.token1Symbol,
+                  ...details,
+                })
+              } catch (decodeError) {
+                logger.warn(`Failed to decode position ${positionPDA.toString()}:`, decodeError)
+              }
+            }
+          } catch (pdaError) {
+            logger.warn(`Failed to process NFT ${nftMint.toString()}:`, pdaError)
           }
         }
       }
 
+      logger.info(`Found ${positions.length} position(s) for wallet ${walletAddress}`)
       return positions
+
     } catch (error) {
       logger.error(`Error fetching positions for wallet ${walletAddress}:`, error)
       throw error
@@ -149,30 +232,45 @@ export class RaydiumService {
   /**
    * Fetch popular/high liquidity pools
    */
-  async getPopularPools(): Promise<any[]> {
+  async getPopularPools(): Promise<PoolData[]> {
     try {
-      // In production, you would:
-      // 1. Query Raydium API or maintain a curated list
-      // 2. Use getProgramAccounts to find all pools
-      // 3. Sort by TVL or volume
+      logger.info('Fetching popular pools...')
 
-      // For now, returning well-known pool addresses
-      const popularPoolAddresses: string[] = [
-        // These would be actual Raydium CLMM pool addresses
-        // You'll need to add real addresses from Raydium
-      ]
+      const raydium = await this.initRaydium()
 
-      const pools = []
-      for (const address of popularPoolAddresses) {
-        try {
-          const poolInfo = await this.getPoolInfo(address)
-          pools.push(poolInfo)
-        } catch (error) {
-          logger.warn(`Failed to fetch pool ${address}:`, error)
+      // Fetch pools from Raydium API
+      const poolsData = await raydium.api.getPoolList({
+        type: PoolFetchType.Concentrated,
+        sort: 'liquidity',
+        order: 'desc',
+        pageSize: 20,
+      })
+
+      const pools: PoolData[] = []
+
+      for (const pool of poolsData.data) {
+        if ('mintA' in pool && 'mintB' in pool) {
+          const clmmPool = pool as ApiV3PoolInfoStandardItemCpmm
+
+          pools.push({
+            address: clmmPool.id,
+            name: `${clmmPool.mintA.symbol}/${clmmPool.mintB.symbol}`,
+            token0Mint: clmmPool.mintA.address,
+            token0Symbol: clmmPool.mintA.symbol,
+            token1Mint: clmmPool.mintB.address,
+            token1Symbol: clmmPool.mintB.symbol,
+            currentPrice: typeof clmmPool.price === 'string' ? parseFloat(clmmPool.price) : clmmPool.price,
+            liquidity: clmmPool.tvl?.toString() || '0',
+            volume24h: clmmPool.day?.volume || 0,
+            apr: clmmPool.day?.apr || 0,
+            tvl: clmmPool.tvl || 0,
+          })
         }
       }
 
+      logger.info(`Found ${pools.length} popular pools`)
       return pools
+
     } catch (error) {
       logger.error('Error fetching popular pools:', error)
       throw error
@@ -180,57 +278,68 @@ export class RaydiumService {
   }
 
   /**
-   * Calculate position details including value and pending fees
+   * Calculate position value and details
    */
-  private async calculatePositionDetails(
-    position: PositionState,
-    poolInfo: any
-  ): Promise<any> {
+  private calculatePositionValue(
+    position: any,
+    poolInfo: PoolData
+  ): {
+    token0Amount: number
+    token1Amount: number
+    tickLower: number
+    tickUpper: number
+    priceMin: number
+    priceMax: number
+    currentPrice: number
+    liquidity: string
+    totalValueUSD: number
+    pendingFeesUSD: number
+    apr: number
+    isOutOfRange: boolean
+  } {
     try {
-      // Calculate token amounts from liquidity and tick range
-      const { amount0, amount1 } = this.getTokenAmountsFromLiquidity(
-        position.liquidity,
-        position.tickLowerIndex,
-        position.tickUpperIndex,
-        poolInfo.tickCurrent,
-        poolInfo.currentPrice
-      )
+      const tickLower = position.tickLowerIndex
+      const tickUpper = position.tickUpperIndex
+      const liquidity = position.liquidity.toString()
 
-      // Check if position is in range
-      const isInRange = poolInfo.tickCurrent >= position.tickLowerIndex
-        && poolInfo.tickCurrent <= position.tickUpperIndex
+      // Calculate price range
+      const priceMin = this.tickToPrice(tickLower)
+      const priceMax = this.tickToPrice(tickUpper)
 
-      // Calculate price range from ticks
-      const priceMin = this.tickToPrice(position.tickLowerIndex)
-      const priceMax = this.tickToPrice(position.tickUpperIndex)
+      // Determine if position is in range
+      // We'll use current price from pool data
+      const currentPrice = poolInfo.currentPrice
+      const isOutOfRange = currentPrice < priceMin || currentPrice > priceMax
+
+      // Calculate token amounts (simplified)
+      // In production, you'd use more precise calculations based on liquidity
+      const token0Amount = parseFloat(position.tokenFeesOwed0 || '0') / 1e6 // Adjust for decimals
+      const token1Amount = parseFloat(position.tokenFeesOwed1 || '0') / 1e6
+
+      // Calculate total value (simplified - would need actual token prices)
+      const totalValueUSD = (token0Amount * currentPrice) + token1Amount
+
+      // Pending fees
+      const pendingFeesUSD = 0 // Would need to calculate from fee growth
 
       return {
-        tickLower: position.tickLowerIndex,
-        tickUpper: position.tickUpperIndex,
-        liquidity: position.liquidity,
-        token0Amount: amount0,
-        token1Amount: amount1,
+        token0Amount,
+        token1Amount,
+        tickLower,
+        tickUpper,
         priceMin,
         priceMax,
-        currentPrice: poolInfo.currentPrice,
-        isOutOfRange: !isInRange,
-        pendingFees0: position.tokenFeesOwed0,
-        pendingFees1: position.tokenFeesOwed1,
+        currentPrice,
+        liquidity,
+        totalValueUSD,
+        pendingFeesUSD,
+        apr: poolInfo.apr,
+        isOutOfRange,
       }
     } catch (error) {
-      logger.error('Error calculating position details:', error)
+      logger.error('Error calculating position value:', error)
       throw error
     }
-  }
-
-  /**
-   * Convert sqrtPriceX64 to human-readable price
-   */
-  private sqrtPriceX64ToPrice(sqrtPriceX64: string): number {
-    const Q64 = new Decimal(2).pow(64)
-    const sqrtPrice = new Decimal(sqrtPriceX64).div(Q64)
-    const price = sqrtPrice.pow(2)
-    return price.toNumber()
   }
 
   /**
@@ -238,109 +347,6 @@ export class RaydiumService {
    */
   private tickToPrice(tick: number): number {
     return Math.pow(1.0001, tick)
-  }
-
-  /**
-   * Calculate token amounts from liquidity
-   */
-  private getTokenAmountsFromLiquidity(
-    liquidity: string,
-    tickLower: number,
-    tickUpper: number,
-    tickCurrent: number,
-    currentPrice: number
-  ): { amount0: number; amount1: number } {
-    const L = new Decimal(liquidity)
-    const priceLower = this.tickToPrice(tickLower)
-    const priceUpper = this.tickToPrice(tickUpper)
-
-    let amount0 = 0
-    let amount1 = 0
-
-    if (tickCurrent < tickLower) {
-      // Position is entirely in token0
-      const sqrtPriceLower = Math.sqrt(priceLower)
-      const sqrtPriceUpper = Math.sqrt(priceUpper)
-      amount0 = L.mul(sqrtPriceUpper - sqrtPriceLower).div(sqrtPriceUpper * sqrtPriceLower).toNumber()
-    } else if (tickCurrent >= tickUpper) {
-      // Position is entirely in token1
-      const sqrtPriceLower = Math.sqrt(priceLower)
-      const sqrtPriceUpper = Math.sqrt(priceUpper)
-      amount1 = L.mul(sqrtPriceUpper - sqrtPriceLower).toNumber()
-    } else {
-      // Position is in range, split between both tokens
-      const sqrtPriceCurrent = Math.sqrt(currentPrice)
-      const sqrtPriceLower = Math.sqrt(priceLower)
-      const sqrtPriceUpper = Math.sqrt(priceUpper)
-
-      amount0 = L.mul(sqrtPriceUpper - sqrtPriceCurrent).div(sqrtPriceUpper * sqrtPriceCurrent).toNumber()
-      amount1 = L.mul(sqrtPriceCurrent - sqrtPriceLower).toNumber()
-    }
-
-    return { amount0, amount1 }
-  }
-
-  /**
-   * Deserialize pool state from account data
-   * Note: This is simplified. Use Raydium SDK's actual deserializer in production
-   */
-  private deserializePoolState(_data: Buffer): PoolState {
-    // This is a placeholder. In production, you would:
-    // 1. Use the actual Raydium CLMM IDL
-    // 2. Use Anchor to deserialize the account data
-    // 3. Or use Raydium's official SDK if available
-
-    // For now, throw error to remind us this needs proper implementation
-    throw new Error('Pool deserialization needs Raydium SDK implementation')
-  }
-
-  /**
-   * Deserialize position state from account data
-   */
-  private deserializePositionState(_data: Buffer): PositionState {
-    // Same as above - needs proper implementation with Raydium SDK
-    throw new Error('Position deserialization needs Raydium SDK implementation')
-  }
-
-  /**
-   * Get token metadata (symbol, decimals)
-   */
-  async getTokenMetadata(mintAddress: string): Promise<{ symbol: string; decimals: number }> {
-    try {
-      const mint = new PublicKey(mintAddress)
-      const mintInfo = await this.connection.getParsedAccountInfo(mint)
-
-      if (!mintInfo.value || !('parsed' in mintInfo.value.data)) {
-        throw new Error('Invalid mint account')
-      }
-
-      const decimals = mintInfo.value.data.parsed.info.decimals
-
-      // For symbol, you'd typically fetch from a token list or metadata
-      // For now, return a placeholder
-      const symbol = await this.getTokenSymbol(mintAddress)
-
-      return { symbol, decimals }
-    } catch (error) {
-      logger.error(`Error fetching token metadata for ${mintAddress}:`, error)
-      throw error
-    }
-  }
-
-  /**
-   * Get token symbol from common token list
-   */
-  private async getTokenSymbol(mintAddress: string): Promise<string> {
-    // Map of known token mints to symbols
-    const knownTokens: Record<string, string> = {
-      'So11111111111111111111111111111111111111112': 'SOL',
-      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',
-      'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 'USDT',
-      '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': 'RAY',
-      'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So': 'mSOL',
-    }
-
-    return knownTokens[mintAddress] || 'UNKNOWN'
   }
 }
 
