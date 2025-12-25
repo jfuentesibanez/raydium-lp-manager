@@ -149,7 +149,10 @@ export class RaydiumService {
    */
   async getWalletPositions(walletAddress: string): Promise<PositionData[]> {
     try {
+      // Debug logging for Railway
       logger.info(`Fetching positions for wallet ${walletAddress}`)
+      logger.info(`Wallet address length: ${walletAddress.length}`)
+      logger.info(`Wallet address charCodes: ${Array.from(walletAddress).map(c => c.charCodeAt(0)).join(',')}`)
 
       if (!walletAddress || walletAddress.trim() === '') {
         throw new Error('Wallet address is empty or undefined')
@@ -157,12 +160,14 @@ export class RaydiumService {
 
       await this.initRaydium()
 
-      // Validate and create PublicKey
+      // Validate and create PublicKey - force trim again for safety
       let walletPubkey: PublicKey
       try {
-        walletPubkey = new PublicKey(walletAddress)
+        const cleanAddress = walletAddress.trim()
+        logger.info(`Clean address: "${cleanAddress}" (length: ${cleanAddress.length})`)
+        walletPubkey = new PublicKey(cleanAddress)
       } catch (error) {
-        throw new Error(`Invalid wallet address format: ${walletAddress}. Error: ${error instanceof Error ? error.message : String(error)}`)
+        throw new Error(`Invalid wallet address format: "${walletAddress}". Length: ${walletAddress.length}. Error: ${error instanceof Error ? error.message : String(error)}`)
       }
 
       // Find all token accounts owned by the wallet
