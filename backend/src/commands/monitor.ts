@@ -2,12 +2,16 @@ import cron from 'node-cron'
 import logger from '../utils/logger'
 import config from '../config'
 import raydiumService from '../services/raydium-mock.service'
+import { createRebalanceStrategy, PositionInfo } from '../core/rebalance-strategy'
 
 interface MonitorOptions {
   interval: string
   rebalance: boolean
   compound: boolean
 }
+
+// Global rebalance strategy instance
+const rebalanceStrategy = createRebalanceStrategy()
 
 export async function monitorCommand(options: MonitorOptions) {
   const walletAddress = config.wallet.publicKey
@@ -69,11 +73,42 @@ async function monitorCheck(walletAddress: string, options: MonitorOptions) {
         logger.warn(`⚠️  Position ${position.poolName} is OUT OF RANGE`)
         logger.warn(`   Current Price: $${position.currentPrice.toFixed(4)}`)
         logger.warn(`   Position Range: $${position.priceMin.toFixed(4)} - $${position.priceMax.toFixed(4)}`)
+        logger.warn(`   Value: $${position.totalValueUSD.toFixed(2)}`)
 
         if (options.rebalance) {
-          logger.info(`   → Auto-rebalancing enabled, will rebalance...`)
-          // TODO: Implement auto-rebalance
-          logger.info(`   → Rebalance logic not yet implemented`)
+          logger.info(`   → Auto-rebalancing enabled, analyzing...`)
+
+          // Check if rebalancing is recommended
+          const positionInfo: PositionInfo = {
+            id: position.id,
+            poolName: position.poolName,
+            currentPrice: position.currentPrice,
+            priceMin: position.priceMin,
+            priceMax: position.priceMax,
+            totalValueUSD: position.totalValueUSD,
+            isOutOfRange: position.isOutOfRange,
+            liquidity: position.liquidity,
+            token0Amount: position.token0Amount,
+            token1Amount: position.token1Amount,
+            pendingFeesUSD: position.pendingFeesUSD,
+          }
+
+          const decision = rebalanceStrategy.shouldRebalance(positionInfo)
+
+          if (decision.shouldRebalance) {
+            logger.info(`   ✓ Rebalancing recommended: ${decision.reason}`)
+            logger.info(`   → Simulating rebalance...`)
+
+            try {
+              await simulateAutoRebalance(position, decision.newPriceMin!, decision.newPriceMax!)
+              rebalanceStrategy.recordRebalance(position.id)
+              logger.info(`   ✅ Position rebalanced successfully`)
+            } catch (error) {
+              logger.error(`   ❌ Rebalance failed:`, error)
+            }
+          } else {
+            logger.info(`   ⏸️  Rebalancing not recommended: ${decision.reason}`)
+          }
         }
       }
     }
@@ -91,4 +126,18 @@ async function monitorCheck(walletAddress: string, options: MonitorOptions) {
   } catch (error) {
     logger.error('Error during monitor check:', error)
   }
+}
+
+/**
+ * Simulate auto-rebalance within monitor
+ */
+async function simulateAutoRebalance(
+  position: any,
+  newPriceMin: number,
+  newPriceMax: number
+): Promise<void> {
+  logger.info(`     Closing position ${position.id.slice(0, 8)}...`)
+  await new Promise(resolve => setTimeout(resolve, 1000))
+  logger.info(`     Creating new position with range $${newPriceMin.toFixed(4)} - $${newPriceMax.toFixed(4)}`)
+  await new Promise(resolve => setTimeout(resolve, 1000))
 }

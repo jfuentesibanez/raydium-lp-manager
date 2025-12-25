@@ -93,6 +93,8 @@ program
   .description('Rebalance an out-of-range position')
   .requiredOption('-p, --position <id>', 'Position ID to rebalance')
   .option('-r, --range <percent>', 'New price range percentage', '10')
+  .option('--real', 'Use real on-chain data instead of mock data')
+  .option('--force', 'Force rebalance even if not recommended')
   .action(async (options) => {
     try {
       logger.info('Rebalancing position...')

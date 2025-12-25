@@ -4,23 +4,16 @@
   "private": true,
   "description": "Automated liquidity management system for Raydium CLMM pools on Solana",
   "workspaces": [
-    "frontend",
     "backend"
   ],
   "scripts": {
-    "dev": "npm run dev:backend & npm run dev:frontend",
-    "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm run dev",
-    "build": "npm run build:backend && npm run build:frontend",
-    "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm run build",
-    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
-    "lint": "npm run lint:frontend && npm run lint:backend",
-    "lint:frontend": "cd frontend && npm run lint",
-    "lint:backend": "cd backend && npm run lint",
-    "type-check": "npm run type-check:frontend && npm run type-check:backend",
-    "type-check:frontend": "cd frontend && npm run type-check",
-    "type-check:backend": "cd backend && npm run type-check"
+    "dev": "cd backend && npm run dev",
+    "build": "cd backend && npm run build",
+    "start": "cd backend && npm start",
+    "monitor": "cd backend && npm run monitor",
+    "install:all": "npm install && cd backend && npm install",
+    "lint": "cd backend && npm run lint",
+    "type-check": "cd backend && npm run type-check"
   },
   "keywords": [
     "solana",
