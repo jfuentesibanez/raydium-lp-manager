@@ -1,5 +1,3 @@
-import logger from '../utils/logger'
-
 export interface RebalanceConfig {
   // Percentage threshold for rebalancing (e.g., 5 = 5% price movement)
   priceMovementThreshold: number
