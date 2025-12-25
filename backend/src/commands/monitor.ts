@@ -1,7 +1,7 @@
 import cron from 'node-cron'
 import logger from '../utils/logger'
 import config from '../config'
-import raydiumService from '../services/raydium-mock.service'
+import raydiumService from '../services/raydium.service'
 import { createRebalanceStrategy, PositionInfo } from '../core/rebalance-strategy'
 import telegramService from '../services/telegram.service'
 
