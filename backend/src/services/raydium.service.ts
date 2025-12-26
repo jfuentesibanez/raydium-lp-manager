@@ -193,6 +193,7 @@ export class RaydiumService {
       }
 
       // Find all token accounts owned by the wallet
+      // Force rebuild 2025-12-26 11:00
       logger.info(`Fetching token accounts for wallet...`)
       logger.info(`@solana/web3.js version: ${require('@solana/web3.js/package.json').version}`)
       logger.info(`Using built-in TOKEN_PROGRAM_ID constant: ${TOKEN_PROGRAM_ID.toBase58()}`)
