@@ -193,10 +193,16 @@ export class RaydiumService {
       }
 
       // Find all token accounts owned by the wallet
+      logger.info(`Fetching token accounts for wallet...`)
+      const tokenProgramId = new PublicKey('TokenkgQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+      logger.info(`Token Program ID: ${tokenProgramId.toBase58()}`)
+
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         walletPubkey,
-        { programId: new PublicKey('TokenkgQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') }
+        { programId: tokenProgramId }
       )
+
+      logger.info(`Found ${tokenAccounts.value.length} token accounts`)
 
       const positions: PositionData[] = []
 
@@ -205,7 +211,18 @@ export class RaydiumService {
 
         // Only process accounts with exactly 1 token (NFTs)
         if (tokenAmount.uiAmount === 1 && tokenAmount.decimals === 0) {
-          const nftMint = new PublicKey(account.data.parsed.info.mint)
+          const mintAddress = account.data.parsed.info.mint
+          logger.info(`Processing NFT mint: "${mintAddress}" (type: ${typeof mintAddress})`)
+
+          let nftMint: PublicKey
+          try {
+            nftMint = new PublicKey(mintAddress)
+            logger.info(`✅ Created NFT mint PublicKey: ${nftMint.toBase58()}`)
+          } catch (mintError) {
+            logger.error(`❌ Failed to create PublicKey for NFT mint: "${mintAddress}"`)
+            logger.error(`Error: ${mintError instanceof Error ? mintError.message : String(mintError)}`)
+            continue // Skip this NFT
+          }
 
           try {
             // Derive the position PDA from the NFT mint
