@@ -194,8 +194,18 @@ export class RaydiumService {
 
       // Find all token accounts owned by the wallet
       logger.info(`Fetching token accounts for wallet...`)
-      const tokenProgramId = new PublicKey('TokenkgQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
-      logger.info(`Token Program ID: ${tokenProgramId.toBase58()}`)
+      logger.info(`@solana/web3.js version: ${require('@solana/web3.js/package.json').version}`)
+
+      let tokenProgramId: PublicKey
+      try {
+        tokenProgramId = new PublicKey('TokenkgQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+        logger.info(`✅ Token Program ID created: ${tokenProgramId.toBase58()}`)
+      } catch (tokenError) {
+        logger.error(`❌ CRITICAL: Failed to create Token Program PublicKey!`)
+        logger.error(`Error: ${tokenError instanceof Error ? tokenError.message : String(tokenError)}`)
+        logger.error(`This is a hardcoded constant - PublicKey constructor is broken!`)
+        throw new Error(`Failed to initialize Token Program ID: ${tokenError instanceof Error ? tokenError.message : String(tokenError)}`)
+      }
 
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         walletPubkey,
