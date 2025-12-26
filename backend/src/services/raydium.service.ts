@@ -161,9 +161,10 @@ export class RaydiumService {
       await this.initRaydium()
 
       // Validate and create PublicKey - force trim again for safety
+      const cleanAddress = walletAddress.trim()
       let walletPubkey: PublicKey
+
       try {
-        const cleanAddress = walletAddress.trim()
         logger.info(`Clean address: "${cleanAddress}" (length: ${cleanAddress.length})`)
 
         // Try creating directly from string
